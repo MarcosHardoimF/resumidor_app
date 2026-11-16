@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resumidor de Reuniões</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+:root {
+  --bg: #F6F7F9; --surface: #FFFFFF; --fg: #1A2230; --muted: #5B6575; --line: #DDE2EA;
+  --accent: #1F6F78; --accent-fg: #FFFFFF; --accent-soft: #E3F1F2;
+  --note: #FBF6E4; --note-line: #E8DDB5;
+  --warn-fg: #8A5300; --warn-bg: #FCEBCF; --err-fg: #A12C2C; --err-bg: #FBE4E4;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12161D; --surface: #1A2029; --fg: #E6EAF0; --muted: #9AA4B2; --line: #2C3441;
+    --accent: #5FC1CB; --accent-fg: #0E1A1C; --accent-soft: #17343A;
+    --note: #262318; --note-line: #3D3824;
+    --warn-fg: #F5C177; --warn-bg: #3A2A12; --err-fg: #F3A3A3; --err-bg: #3B1C1C;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 32px 20px 48px; display: flex; flex-direction: column; gap: 24px; }
+header { display: flex; flex-direction: column; gap: 6px; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; line-height: 1.2; text-wrap: balance; }
+h1 { font-size: 1.9rem; font-weight: 600; }
+header p { margin: 0; color: var(--muted); max-width: 70ch; }
+.eyebrow { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+
+.grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 20px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.panel-head h2 { font-size: 1.1rem; font-weight: 600; }
+
+textarea {
+  width: 100%; min-height: 380px; resize: vertical; padding: 14px 16px;
+  background: var(--note); color: var(--fg); border: 1px solid var(--note-line); border-radius: 6px;
+  font-family: var(--font-mono); font-size: .85rem; line-height: 1.7;
+}
+textarea:focus-visible, button:focus-visible, label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.count { font-family: var(--font-mono); font-size: .75rem; color: var(--muted); }
+
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+button, label.btn {
+  font: inherit; font-weight: 500; font-size: .9rem; cursor: pointer;
+  padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--fg); display: inline-flex; align-items: center; gap: 8px;
+}
+button:hover, label.btn:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.primary:hover { filter: brightness(1.08); }
+button:disabled { opacity: .55; cursor: not-allowed; }
+label.btn input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+
+.empty { color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; padding: 40px 24px; text-align: center; }
+.empty strong { color: var(--fg); display: block; margin-bottom: 4px; font-family: var(--font-display); }
+
+.loading { display: flex; align-items: center; gap: 12px; color: var(--muted); padding: 40px 24px; justify-content: center; }
+.spinner { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.5s; } }
+
+.error { background: var(--err-bg); color: var(--err-fg); border-radius: 6px; padding: 12px 14px; }
+
+.ata { display: flex; flex-direction: column; gap: 18px; }
+.ata .meta { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+.ata h4 { margin: 0 0 6px; font-family: var(--font-mono); font-size: .72rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.ata ul { margin: 0; padding-left: 20px; }
+.ata li + li { margin-top: 4px; }
+.ata p { margin: 0; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th, td { text-align: left; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; font-size: .78rem; color: var(--muted); }
+.tbd { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn-fg); font-size: .8rem; font-weight: 500; white-space: nowrap; }
+.senha { display: flex; flex-direction: column; gap: 4px; }
+.senha label { font-size: .8rem; font-weight: 500; color: var(--muted); }
+.senha input { font: inherit; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); max-width: 320px; }
+.senha input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.toast { font-size: .8rem; color: var(--accent); min-height: 1em; }
+
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } textarea { min-height: 260px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Agente com Claude · Python + Web</span>
+    <h1>Resumidor de Reuniões</h1>
+    <p>Cole as anotações da reunião, do jeito que estiverem, e gere uma ata com decisões, responsáveis e prazos. O que não estiver nas anotações aparece como <span class="tbd">A definir</span>.</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="t-entrada">
+      <div class="panel-head">
+        <h2 id="t-entrada">Anotações</h2>
+        <span class="count" id="contador">0 caracteres</span>
+      </div>
+      <textarea id="anotacoes" placeholder="Ex.: reunião 10/11 - Ana, Bruno... decidimos adiar o lançamento... Carla fala com marketing até sexta"></textarea>
+      <div class="senha" id="bloco-senha" hidden>
+        <label for="senha">Senha de acesso</label>
+        <input type="password" id="senha" autocomplete="current-password" placeholder="Informada por quem compartilhou o app">
+      </div>
+      <div class="actions">
+        <button class="primary" id="gerar" type="button">Gerar ata</button>
+        <button id="exemplo" type="button">Carregar exemplo</button>
+        <label class="btn" for="arquivo">Abrir arquivo .txt<input type="file" id="arquivo" accept=".txt,.md,text/plain"></label>
+        <button id="limpar" type="button">Limpar</button>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="t-ata" aria-live="polite">
+      <div class="panel-head">
+        <h2 id="t-ata">Ata</h2>
+        <div class="actions" id="acoes-ata" hidden>
+          <button id="copiar" type="button">Copiar texto</button>
+          <button id="baixar" type="button">Baixar .md</button>
+        </div>
+      </div>
+      <div class="toast" id="toast"></div>
+      <div id="resultado">
+        <div class="empty"><strong>A ata aparece aqui</strong>Cole suas anotações ou clique em "Carregar exemplo" e depois em "Gerar ata".</div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const campo = $("anotacoes");
+let markdownAtual = "";
+let precisaSenha = false;
+
+fetch("/api/config").then((r) => r.json()).then((c) => {
+  precisaSenha = c.precisa_senha;
+  $("bloco-senha").hidden = !precisaSenha;
+  try { $("senha").value = sessionStorage.getItem("senha") || ""; } catch {}
+}).catch(() => {});
+
+function escapar(texto) {
+  return String(texto).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function valor(texto) {
+  return /^a definir$/i.test(String(texto).trim()) ? '<span class="tbd">A definir</span>' : escapar(texto);
+}
+function lista(itens, vazio) {
+  if (!itens.length) return `<p>${vazio}</p>`;
+  return "<ul>" + itens.map((i) => `<li>${escapar(i)}</li>`).join("") + "</ul>";
+}
+function atualizarContador() {
+  $("contador").textContent = campo.value.length.toLocaleString("pt-BR") + " caracteres";
+}
+function avisar(msg) {
+  $("toast").textContent = msg;
+  setTimeout(() => { if ($("toast").textContent === msg) $("toast").textContent = ""; }, 2500);
+}
+
+function mostrarAta(ata) {
+  const linhas = ata.proximos_passos.map((t) =>
+    `<tr><td>${escapar(t.tarefa)}</td><td>${valor(t.responsavel)}</td><td>${valor(t.prazo)}</td></tr>`).join("");
+  $("resultado").innerHTML = `
+    <article class="ata">
+      <div>
+        <h3>Ata – ${escapar(ata.titulo)}</h3>
+        <p class="meta">${valor(ata.data)} · ${escapar(ata.participantes.join(", ") || "Participantes não informados")}</p>
+      </div>
+      <div><h4>Resumo</h4><p>${escapar(ata.resumo)}</p></div>
+      <div><h4>Decisões</h4>${lista(ata.decisoes, "Nenhuma decisão registrada.")}</div>
+      <div><h4>Próximos passos</h4>
+        ${linhas ? `<div class="table-scroll"><table>
+          <thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th></tr></thead>
+          <tbody>${linhas}</tbody></table></div>` : "<p>Nenhuma tarefa registrada.</p>"}
+      </div>
+      <div><h4>Pontos em aberto</h4>${lista(ata.pontos_em_aberto, "Nenhum.")}</div>
+    </article>`;
+  $("acoes-ata").hidden = false;
+}
+
+async function gerar() {
+  const texto = campo.value.trim();
+  if (!texto) { campo.focus(); avisar("Cole as anotações antes de gerar a ata."); return; }
+  const senha = $("senha").value;
+  if (precisaSenha && !senha) { $("senha").focus(); avisar("Digite a senha de acesso."); return; }
+  try { sessionStorage.setItem("senha", senha); } catch {}
+  $("gerar").disabled = true;
+  $("acoes-ata").hidden = true;
+  $("resultado").innerHTML = '<div class="loading"><div class="spinner"></div>O agente está lendo as anotações e montando a ata...</div>';
+  try {
+    const resp = await fetch("/api/resumir", {
+      method: "POST", headers: { "Content-Type": "application/json", "X-Senha": senha },
+      body: JSON.stringify({ anotacoes: texto }),
+    });
+    const dados = await resp.json();
+    if (!resp.ok) throw new Error(dados.erro || "Não foi possível gerar a ata.");
+    markdownAtual = dados.markdown;
+    mostrarAta(dados.ata);
+  } catch (e) {
+    const msg = e instanceof TypeError ? "O servidor não respondeu. Confira se o app ainda está rodando." : e.message;
+    $("resultado").innerHTML = `<div class="error">${escapar(msg)}</div>`;
+  } finally {
+    $("gerar").disabled = false;
+  }
+}
+
+$("gerar").addEventListener("click", gerar);
+campo.addEventListener("input", atualizarContador);
+campo.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) gerar(); });
+
+$("exemplo").addEventListener("click", async () => {
+  const resp = await fetch("/api/exemplo");
+  campo.value = (await resp.json()).anotacoes;
+  atualizarContador();
+});
+$("limpar").addEventListener("click", () => { campo.value = ""; atualizarContador(); campo.focus(); });
+$("arquivo").addEventListener("change", async (e) => {
+  const arq = e.target.files[0];
+  if (!arq) return;
+  campo.value = await arq.text();
+  atualizarContador();
+  e.target.value = "";
+});
+
+$("copiar").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(markdownAtual); avisar("Ata copiada."); }
+  catch { avisar("Não foi possível copiar. Use o botão Baixar .md."); }
+});
+$("baixar").addEventListener("click", () => {
+  const url = URL.createObjectURL(new Blob([markdownAtual], { type: "text/markdown;charset=utf-8" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: "ata.md" });
+  a.click();
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>
